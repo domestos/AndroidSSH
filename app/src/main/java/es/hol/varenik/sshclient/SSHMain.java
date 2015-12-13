@@ -6,11 +6,14 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.jcraft.jsch.Channel;
-import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 
 import java.io.InputStream;
@@ -33,22 +36,26 @@ public class SSHMain extends AppCompatActivity {
         setContentView(R.layout.activity_sshmain);
 
         commands = new ArrayList<String>();
-        commands.add("cat /home/varenik/Desktop/linlssh");
+        //commands.add("cat /home/varenik/Desktop/linlssh");
         commands.add("export DISPLAY=:0 ");
-        commands.add("gnome-open https:google.com");
+       // commands.add("gnome-open https:google.com");
         // commands.add("gnome-open https:vk.com");
 
         //session = AsyncSession.getSession();
-        a = new AsyncSession();
 
 
         Button btnUrl = (Button) findViewById(R.id.btnURL);
+        final EditText etUrt = (EditText) findViewById(R.id.etUrl);
+
         btnUrl.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+            String url  = etUrt.getText().toString();
+                if (!url.isEmpty()) {
+                    commands.add("gnome-open "+url);
+                    new AsyncSession().execute();
 
-                a.execute();
-
+                }
 
             }
         });
@@ -57,9 +64,9 @@ public class SSHMain extends AppCompatActivity {
     }
 
 
-    static class AsyncSession extends AsyncTask<Void, Void, ChannelShell> {
+    class AsyncSession extends AsyncTask<Void, String, ChannelShell> {
 
-        private static Session getSession() {
+        private Session getSession() {
             if (session == null || !session.isConnected()) {
                 Log.i(TAG, "begin creat session");
                 session = connect("192.168.0.103", "varenik", "4554722");
@@ -69,7 +76,7 @@ public class SSHMain extends AppCompatActivity {
             return session;
         }
 
-        private static Session connect(String hostname, String username, String password) {
+        private Session connect(String hostname, String username, String password) {
 
             JSch jSch = new JSch();
 
@@ -89,13 +96,14 @@ public class SSHMain extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "An error occurred while connecting to " + hostname + ": " + e);
             }
-            Log.i(TAG,"server Info: getServerVersion ="+ session.getServerVersion());
-            Log.i(TAG,"server Info: getServerAliveCountMax ="+ session.getServerAliveCountMax());
+            Log.i(TAG, "server Info: getServerVersion =" + session.getServerVersion());
+            Log.i(TAG, "server Info: getServerAliveCountMax =" + session.getServerAliveCountMax());
             return session;
 
         }
 
-        private static Channel getChannel() {
+        private Channel getChannel() throws JSchException {
+
             if (channelSell == null || !channelSell.isConnected()) {
                 try {
                     channelSell = (ChannelShell) getSession().openChannel("shell");
@@ -116,14 +124,14 @@ public class SSHMain extends AppCompatActivity {
             return channelSell;
         }
 
-        private static void executeCommands(List<String> commands) {
+        private void executeCommands(List<String> commands) {
 
             try {
                 Channel channel = getChannel();
                 Log.i(TAG, "Sending commands...");
                 sendCommands(channel, commands);
 
-                 readChannelOutput(channel);
+                readChannelOutput(channel);
                 Log.i(TAG, "Finished sending commands! ");
 
             } catch (Exception e) {
@@ -131,11 +139,11 @@ public class SSHMain extends AppCompatActivity {
             }
         }
 
-        private static void sendCommands(Channel channel, List<String> commands) {
+        private void sendCommands(Channel channel, List<String> commands) {
 
             try {
                 PrintStream out = new PrintStream(channel.getOutputStream());
-
+                Log.i(TAG, "send command in chanel " + channel.hashCode());
                 out.println("#!/bin/bash");
                 for (String command : commands) {
                     out.println(command);
@@ -144,13 +152,15 @@ public class SSHMain extends AppCompatActivity {
 
                 out.flush();
                 out.close();
+
+
             } catch (Exception e) {
                 Log.e(TAG, "Error while sending commands: " + e);
             }
 
         }
 
-        private static void readChannelOutput(Channel channel) {
+        private void readChannelOutput(Channel channel) {
 
             byte[] buffer = new byte[1024];
 
@@ -184,9 +194,9 @@ public class SSHMain extends AppCompatActivity {
             }
         }
 
-        public static void close() {
+        public void close() {
             channelSell.disconnect();
-            session.disconnect();
+            // session.disconnect();
             System.out.println("Disconnected channel and session");
         }
 
@@ -197,8 +207,18 @@ public class SSHMain extends AppCompatActivity {
         }
 
         @Override
+        protected void onProgressUpdate(String... values) {
+            Toast.makeText(SSHMain.this, "Working", Toast.LENGTH_SHORT).show();
+            TextView tv = (TextView) findViewById(R.id.status);
+
+            tv.setText("working");
+            super.onProgressUpdate(values);
+        }
+
+        @Override
         protected ChannelShell doInBackground(Void... params) {
             executeCommands(commands);
+            close();
             return null;
         }
 
